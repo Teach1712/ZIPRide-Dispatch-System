@@ -1,221 +1,164 @@
 # =========================================================
-# graph.py
-# ZipRide Dispatch System
+# graph.py (fixed)
 # =========================================================
 
-from collections import deque
+import numpy as np
+
+INF = 999999
+MAX_VERTICES = 20
+
+
+class Edge:
+    def __init__(self, dest, weight):
+        self.dest = dest
+        self.weight = weight
+
+
+class Vertex:
+    def __init__(self, name):
+        self.name = name
+        self.edges = []
+        self.edge_count = 0
+
+    def add_edge(self, edge):
+        self.edges.append(edge)
+        self.edge_count += 1
+
+
+class Queue:
+    def __init__(self):
+        self.items = []
+
+    def enqueue(self, item):
+        self.items.append(item)
+
+    def dequeue(self):
+        return self.items.pop(0)
+
+    def is_empty(self):
+        return len(self.items) == 0
 
 
 class Graph:
-
     def __init__(self):
-        self.vertices = {}
+        self.vertices = []
+        self.vertex_count = 0
 
-    # =====================================================
-    # Add Location
-    # =====================================================
+    def add_location(self, name):
+        if self.find_vertex(name) is None:
+            self.vertices.append(Vertex(name))
+            self.vertex_count += 1
 
-    def add_location(self, location):
+    def find_vertex(self, name):
+        for v in self.vertices:
+            if v.name == name:
+                return v
+        return None
 
-        if location not in self.vertices:
-            self.vertices[location] = []
-
-    # =====================================================
-    # Add Road
-    # =====================================================
+    def get_index(self, name):
+        for i, v in enumerate(self.vertices):
+            if v.name == name:
+                return i
+        return -1
 
     def add_road(self, src, dest, weight):
-
         if weight < 0:
-            print("Negative weights are not allowed")
+            print("Negative weight rejected")
             return
 
         self.add_location(src)
         self.add_location(dest)
 
-        self.vertices[src].append((dest, weight))
-        self.vertices[dest].append((src, weight))
+        src_vertex = self.find_vertex(src)
+        dest_vertex = self.find_vertex(dest)
 
-    # =====================================================
-    # Print Graph
-    # =====================================================
+        src_vertex.add_edge(Edge(dest, weight))
+        dest_vertex.add_edge(Edge(src, weight))
 
     def print_graph(self):
-
+        print("\n===== MODULE 1: GRAPH ROUTE PLANNING =====")
         print("\nAdjacency List:\n")
-
-        for location in self.vertices:
-
-            print(location + ":")
-
-            if len(self.vertices[location]) == 0:
-                print("No roads")
-
-            else:
-
-                for neighbour, weight in self.vertices[location]:
-                    print(neighbour + "(" + str(weight) + ")")
-
-            print()
-
-    # =====================================================
-    # BFS
-    # =====================================================
+        for v in self.vertices:
+            print(v.name + ":")
+            for e in v.edges:
+                print(" ->", e.dest, "(" + str(e.weight) + ")")
 
     def bfs(self, start):
+        print("\nBFS Traversal:")
+        visited = {v.name: False for v in self.vertices}
+        queue = Queue()
 
-        if start not in self.vertices:
-            print("Invalid location")
-            return
+        visited[start] = True
+        queue.enqueue(start)
 
-        visited = []
-        queue = deque()
-
-        queue.append((start, 0))
-        visited.append(start)
-
-        current_level = -1
-
-        print("\nBFS from", start)
-
-        while queue:
-
-            node, level = queue.popleft()
-
-            if level != current_level:
-                current_level = level
-                print("\nLevel", level, ":", end=" ")
-
+        while not queue.is_empty():
+            node = queue.dequeue()
             print(node, end=" ")
-
-            for neighbour, weight in self.vertices[node]:
-
-                if neighbour not in visited:
-                    visited.append(neighbour)
-                    queue.append((neighbour, level + 1))
-
+            vertex = self.find_vertex(node)
+            for e in vertex.edges:
+                if not visited[e.dest]:
+                    visited[e.dest] = True
+                    queue.enqueue(e.dest)
         print()
 
-    # =====================================================
-    # DFS Cycle Detection
-    # =====================================================
+    def dfs_cycle(self, start):
+        print("\nDFS Cycle Detection:")
+        visited = {v.name: False for v in self.vertices}
+        stack = []
+        parent = {}
 
-    def dfs_cycle(self):
+        def dfs(node):
+            visited[node] = True
+            stack.append(node)
+            vertex = self.find_vertex(node)
+            for e in vertex.edges:
+                if not visited[e.dest]:
+                    parent[e.dest] = node
+                    if dfs(e.dest):
+                        return True
+                elif parent.get(node) != e.dest and e.dest in stack:
+                    print("Cycle found:", " -> ".join(stack + [e.dest]))
+                    return True
+            stack.pop()
+            return False
 
-        visited = []
-
-        for node in self.vertices:
-
-            if node not in visited:
-
-                result = self._dfs_recursive(
-                    node,
-                    visited,
-                    None,
-                    []
-                )
-
-                if result:
-                    print("\nCycle detected:")
-                    print(" -> ".join(result))
-                    return
-
-        print("\nNo cycle detected")
-
-    def _dfs_recursive(self, current, visited, parent, path):
-
-        visited.append(current)
-        path.append(current)
-
-        for neighbour, weight in self.vertices[current]:
-
-            if neighbour not in visited:
-
-                result = self._dfs_recursive(
-                    neighbour,
-                    visited,
-                    current,
-                    path
-                )
-
-                if result:
-                    return result
-
-            elif neighbour != parent:
-
-                cycle_path = path.copy()
-                cycle_path.append(neighbour)
-
-                return cycle_path
-
-        path.pop()
-
-        return None
-
-    # =====================================================
-    # Dijkstra Algorithm
-    # =====================================================
+        if not dfs(start):
+            print("No cycle detected.")
 
     def dijkstra(self, start, end):
+        start_index = self.get_index(start)
+        end_index = self.get_index(end)
+        if start_index == -1 or end_index == -1:
+            print("Invalid location")
+            return INF
 
-        if start not in self.vertices:
-            print("Invalid source")
-            return
-
-        if end not in self.vertices:
-            print("Invalid destination")
-            return
-
-        distances = {}
-        previous = {}
-        visited = []
-
-        for node in self.vertices:
-            distances[node] = 999999
-            previous[node] = None
-
+        distances = {v.name: INF for v in self.vertices}
+        previous = {v.name: None for v in self.vertices}
         distances[start] = 0
+        visited = set()
 
-        while len(visited) < len(self.vertices):
-
-            current = None
-            smallest = 999999
-
-            for node in self.vertices:
-
-                if node not in visited and distances[node] < smallest:
-                    smallest = distances[node]
-                    current = node
-
-            if current is None:
+        while len(visited) < self.vertex_count:
+            current = min((v for v in self.vertices if v.name not in visited),
+                          key=lambda v: distances[v.name], default=None)
+            if current is None or distances[current.name] == INF:
                 break
+            visited.add(current.name)
+            for e in current.edges:
+                new_dist = distances[current.name] + e.weight
+                if new_dist < distances[e.dest]:
+                    distances[e.dest] = new_dist
+                    previous[e.dest] = current.name
 
-            visited.append(current)
-
-            for neighbour, weight in self.vertices[current]:
-
-                new_distance = distances[current] + weight
-
-                if new_distance < distances[neighbour]:
-                    distances[neighbour] = new_distance
-                    previous[neighbour] = current
-
-        if distances[end] == 999999:
-            print("No path exists")
-            return
-
+        # reconstruct path
         path = []
+        node = end
+        while node:
+            path.insert(0, node)
+            node = previous[node]
 
-        current = end
-
-        while current is not None:
-            path.insert(0, current)
-            current = previous[current]
-
-        print("\nDijkstra Shortest Path")
+        print("\nDijkstra Shortest Path:")
         print("Source:", start)
         print("Destination:", end)
-        print("Shortest Time:", distances[end], "minutes")
+        print("Shortest time:", distances[end], "minutes")
         print("Path:", " -> ".join(path))
-
         return distances[end]
